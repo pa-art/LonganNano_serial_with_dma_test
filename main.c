@@ -54,6 +54,7 @@ int main(void) {
     // enable read buffer not empty interrupt flag of USART0
     usart_interrupt_enable(USART0, USART_INT_FLAG_RBNE);
 
+    // fill dma_buf with #
     for (i = 0; i < BUF_SIZE; i++) {
         dma_buf[i] = '#';
     }
@@ -62,8 +63,10 @@ int main(void) {
 #define DMA_PERIPH  DMA0
 #define CHANNELX    DMA_CH4
 
+    // enable DMA clock
     rcu_periph_clock_enable(RCU_DMA0);
 
+    // set DMA parameters
     dma_parameter_struct dma_param;
     dma_struct_para_init(&dma_param);
     dma_param.periph_addr = &USART_DATA(USART0);
@@ -75,31 +78,35 @@ int main(void) {
     dma_param.number = 16U;
     dma_param.priority = DMA_PRIORITY_HIGH;
     dma_param.direction = DMA_PERIPHERAL_TO_MEMORY;
-
+    // disable and de-init DMA channel
     dma_channel_disable(DMA_PERIPH, CHANNELX);
     dma_deinit(DMA_PERIPH, CHANNELX);
+    // initialize DMA channel
     dma_init(DMA_PERIPH, CHANNELX, &dma_param);
-    //dma_circulation_disable(DMA_PERIPH, CHANNELX);
-    //dma_memory_to_memory_disable(DMA_PERIPH, CHANNELX);
+    // enable DMA interrupt
     dma_interrupt_enable(DMA_PERIPH, CHANNELX, DMA_INT_FLAG_FTF);
 
 
     while (1) {
         cnt = 0;
+        // if USART interrupt occurs
         if (usart_interrupt_flag_get(USART0, USART_INT_FLAG_RBNE) == SET) {
-
+            // enable USART DMA transfer
             usart_dma_receive_config(USART0, USART_DENR_ENABLE);
+            // enable DMA channel
             dma_channel_enable(DMA_PERIPH, CHANNELX);
-
-            //while (dma_flag_get(DMA_PERIPH, CHANNELX, DMA_INT_FLAG_FTF) == RESET) {}
-            while (dma_flag_get(DMA_PERIPH, CHANNELX, DMA_INT_FLAG_FTF) == SET) {
+            // while DMA interrupt flag is set
+            if (dma_interrupt_flag_get(DMA_PERIPH, CHANNELX, DMA_INT_FLAG_FTF) == SET) {
+                // show characters
                 LCD_ShowString(x, y, (u8 *)dma_buf, WHITE);
                 usart_printf((u8 *)dma_buf);
                 dma_interrupt_flag_clear(DMA_PERIPH, CHANNELX, DMA_INT_FLAG_FTF);
+                // disable DMA channel
                 dma_channel_disable(DMA_PERIPH, CHANNELX);
+                // initialize DMA channel
                 dma_init(DMA_PERIPH, CHANNELX, &dma_param);
+                // disable USART DMA transfer
                 usart_dma_receive_config(USART0, USART_DENR_DISABLE);
-                //usart_interrupt_flag_clear(USART0, USART_INT_FLAG_RBNE);
             }
         }
 
